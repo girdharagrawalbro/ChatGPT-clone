@@ -10,6 +10,7 @@ Link {
 }
 
 .main {
+  padding-top: 80px;
   background: url('../public/bg.png');
   background-size: cover;
   background-position: center;
@@ -18,9 +19,11 @@ Link {
   height: 100vh;
   gap: 10px;
 }
-.navbar{
+
+.navbar {
   z-index: 3;
 }
+
 .large-text {
   font-family: 'Aboreto', cursive;
   font-size: 136px;
@@ -69,7 +72,7 @@ Link {
     padding-top: 100px;
     height: 100vh;
     overflow-y: scroll;
-    padding-bottom: 10px ;
+    padding-bottom: 10px;
   }
 
   .mobile {

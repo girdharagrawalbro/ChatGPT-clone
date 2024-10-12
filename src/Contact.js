@@ -34,7 +34,7 @@ const Contact = () => {
             <h2 className="text-center mb-4">Meet the team of Code Avengers </h2>
           </div>
           <div className="container">
-            <div className="row d-flex flex-wrap gap-3">
+            <div className="row d-flex flex-wrap">
               {teamMembers.map((member, index) => (
                 <div className="col-md-3" key={index}>
                   <div className="card bg-dark text-white">

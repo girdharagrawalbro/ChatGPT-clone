@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 function Prediction() {
+
   const [soilType, setSoilType] = useState('');
   const [climate, setClimate] = useState('');
   const [cropType, setCropType] = useState('');
@@ -25,7 +26,7 @@ function Prediction() {
       : `Provide recommendations based on the following inputs in English: ${query}.`;
 
     try {
-      const genAI = new GoogleGenerativeAI("AIzaSyDo0eD4kH-FMGIa6mrr29TodxlqB5RFfzk");
+      const genAI = new GoogleGenerativeAI(process.env.AI_API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       // If an image is uploaded, analyze it
@@ -74,7 +75,7 @@ function Prediction() {
           'Content-Type': 'application/json',
           'X-Api-Version': 'v1',
           Accept: 'application/json',
-          'Authorization': `Bearer lmwr_sk_cdDAV1VASv_FphzM3uRo8nWVqbrCDbLy4wV5Z2JdvzaDkHnn`
+          'Authorization': `Bearer ${process.env.API_KEY}`
         },
         body: JSON.stringify({
           prompt: `A farmland scenario with crops based on the following conditions: ${query}`,
