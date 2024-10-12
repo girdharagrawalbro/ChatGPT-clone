@@ -9,28 +9,66 @@ const Header = () => {
         setIsOpen(!isOpen);
     };
 
+    const closeMenu = () => {
+        setIsOpen(false); // Close menu on navigation
+    };
+
     return (
-        <nav className="navbar navbar-expand-lg py-2 px-4 position-fixed top-0 start-0 w-100 header text-white">
-            <div className='d-flex align-items-center position-relative w-100 justify-content-between'>
-                <Link to="/" className="navbar-brand">
-                    <img src="./logo.png" width="80px" alt="Logo" />
+        <nav className="navbar navbar-expand-lg bg-dark navbar-dark bg-none px-2 py-1 position-fixed w-100 top-0 start-0">
+            <div className="container-fluid">
+                <Link to="/" className="navbar-brand d-flex align-items-center">
+                    <img src="./logo.png" width="60" alt="Logo" className="me-2" />
+                    <span className="fw-bold">Agri AI</span>
                 </Link>
-                <button className="navbar-toggler position-absolute" type="button" onClick={toggleMenu}>
+
+                <button
+                    className="navbar-toggler"
+                    type="button"
+                    onClick={toggleMenu}
+                    aria-controls="navbarNav"
+                    aria-expanded={isOpen}
+                    aria-label="Toggle navigation"
+                >
                     <span className="navbar-toggler-icon"></span>
                 </button>
-                <div className={` collapse navbar-collapse ${isOpen ? 'show' : ''}`}>
-                    <ul className="links navbar-nav ms-auto d-flex gap-2 align-items-center">
+
+                <div className={`collapse navbar-collapse ${isOpen ? 'show' : ''}`} id="navbarNav">
+                    <ul className="navbar-nav ms-auto d-flex align-items-center gap-3">
                         <li className="nav-item">
-                            <Link to="/" className="btn text-white fw-bold">Home</Link>
+                            <Link
+                                to="/"
+                                className="btn text-white fw-bold"
+                                onClick={closeMenu}
+                            >
+                                Home
+                            </Link>
                         </li>
                         <li className="nav-item">
-                            <Link to="/about" className="btn text-white fw-bold">About</Link>
+                            <Link
+                                to="/about"
+                                className="btn text-white fw-bold"
+                                onClick={closeMenu}
+                            >
+                                About
+                            </Link>
                         </li>
                         <li className="nav-item">
-                            <Link to="/prediction" className="btn text-white fw-bold">Crop / Fertilizer</Link>
+                            <Link
+                                to="/prediction"
+                                className="btn text-white fw-bold"
+                                onClick={closeMenu}
+                            >
+                                Crop / Fertilizer
+                            </Link>
                         </li>
                         <li className="nav-item">
-                            <Link to="/contact" className="btn text-white fw-bold">Contact Us</Link>
+                            <Link
+                                to="/contact"
+                                className="btn text-white fw-bold"
+                                onClick={closeMenu}
+                            >
+                                Contact Us
+                            </Link>
                         </li>
                     </ul>
                 </div>

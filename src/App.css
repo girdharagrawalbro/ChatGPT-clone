@@ -1,31 +1,6 @@
 /* custom css */
-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  z-index: 1000;
-}
-
-ul {
-  list-style: none;
-}
-
-.navbar-toggler {
-  right: 0;
-}
-
-.links {
-  background-color: #0000006c;
-  width: max-content;
-  border-radius:  30px;
-  padding: 10px;
-  width:500px;
-}
-
 a,
-Link,
-li {
+Link {
   text-decoration: none;
   color: white;
 }
@@ -43,7 +18,9 @@ li {
   height: 100vh;
   gap: 10px;
 }
-
+.navbar{
+  z-index: 3;
+}
 .large-text {
   font-family: 'Aboreto', cursive;
   font-size: 136px;
@@ -80,18 +57,35 @@ li {
   background-color: #00000080;
 }
 
+.mobile {
+  display: none;
+}
 
 
 /* css for mobile screens  */
 
-@media (max-width: 480px) {
+@media (max-width: 400px) {
   .main {
-    background: url('../public/bg.png');
-    background-size: cover;
-    background-position: center;
-    background-color: black;
-    width: 100%;
+    padding-top: 100px;
     height: 100vh;
-    gap: 10px;
+    overflow-y: scroll;
+    padding-bottom: 10px ;
+  }
+
+  .mobile {
+    display: inline-block;
+  }
+
+  .large-text {
+    font-size: 50px;
+    text-align: center;
+  }
+
+  .main .desc {
+    text-align: justify;
+  }
+
+  .text-ai {
+    display: none;
   }
 }

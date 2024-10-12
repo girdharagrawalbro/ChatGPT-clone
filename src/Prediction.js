@@ -109,7 +109,7 @@ function Prediction() {
   };
 
   return (
-    <section className="main d-flex align-items-center text-white">
+    <section className="main d-flex align-items-center text-white flex-wrap">
       <div className="container align-items-center justify-content-center d-flex flex-column gap-2">
         <div className="text-center">
           <h1>Agri AI - Crop / Fertilizer Predictor</h1>
