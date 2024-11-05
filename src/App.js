@@ -24,7 +24,7 @@ function App() {
     try {
       setIsTyping(true);
 
-      const genAI = new GoogleGenerativeAI(process.env.AI_API_KEY); // Replace with env variable
+      const genAI = new GoogleGenerativeAI("AIzaSyDo0eD4kH-FMGIa6mrr29TodxlqB5RFfzk"); // Replace with env variable
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       const result = await model.generateContent(message);
 
