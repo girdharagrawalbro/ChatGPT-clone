@@ -1,0 +1,30 @@
+::-webkit-scrollbar {
+  display: none;
+}
+
+.left {
+  background-color: #252728;
+  width: 20%;
+}
+
+.right {
+  background-color: #181a1b;
+  width: 80%;
+}
+
+input {
+  background-color: #252728;
+  width: 100%;
+  border: none;
+  outline: none;
+}
+
+img {
+  width: 36px;
+}
+
+.logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
