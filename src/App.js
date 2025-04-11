@@ -1,145 +1,518 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import { FiSend, FiCopy, FiMic, FiMicOff, FiMoon, FiSun, FiTrash2, FiDownload } from 'react-icons/fi';
 import './App.css';
-import React, { useState, useEffect } from "react";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 function App() {
+  // State management
   const [message, setMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState(() => {
-    const savedHistory = localStorage.getItem('chatHistory');
-    return savedHistory ? JSON.parse(savedHistory) : [];
-  });
-  const [typingResponse, setTypingResponse] = useState('');
+  const [chatHistory, setChatHistory] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [model, setModel] = useState('gemini-1.5-flash');
+  const [temperature, setTemperature] = useState(0.7);
+  const [darkMode, setDarkMode] = useState(true);
+  const [conversations, setConversations] = useState([]);
+  const [activeConversation, setActiveConversation] = useState(null);
+  const [isListening, setIsListening] = useState(false);
+  const [image, setImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
 
+  // Refs
+  const chatBoxRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const recognitionRef = useRef(null);
+
+  // Initialize from localStorage
   useEffect(() => {
-    localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
-  }, [chatHistory]);
+    const savedConversations = localStorage.getItem('conversations');
+    if (savedConversations) {
+      const parsed = JSON.parse(savedConversations);
+      setConversations(parsed);
+      if (parsed.length > 0) {
+        setActiveConversation(parsed[0].id);
+        setChatHistory(parsed[0].messages);
+      }
+    }
+  }, []);
 
-  const getPrediction = async () => {
-    if (!message.trim()) return;
+  // Auto-scroll chat
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatHistory, isTyping]);
 
-    setChatHistory(prev => [...prev, { sender: 'You', text: message }]);
+  // Voice recognition setup
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window) {
+      recognitionRef.current = new window.webkitSpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+
+      recognitionRef.current.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setMessage(prev => prev + ' ' + transcript);
+      };
+
+      recognitionRef.current.onerror = (event) => {
+        console.error('Speech recognition error', event.error);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
+
+  const scrollToBottom = () => {
+    if (chatBoxRef.current) {
+      chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
+    }
+  };
+
+  const toggleVoiceInput = () => {
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      recognitionRef.current.start();
+    }
+    setIsListening(!isListening);
+  };
+
+  const generateConversationTitle = (messages) => {
+    const firstUserMessage = messages.find(msg => msg.sender === 'You')?.text;
+    if (!firstUserMessage) return 'New Chat';
+    
+    // Take first 4 words or 30 characters, whichever comes first
+    const words = firstUserMessage.trim().split(/\s+/).slice(0, 4).join(' ');
+    return words.slice(0, 30) || 'New Chat';
+  };
+  
+ 
+
+  const createNewConversation = async () => {
+    const newConversation = {
+      id: Date.now(),
+      title: 'New Chat', // Temporary title
+      messages: [],
+      createdAt: new Date().toISOString()
+    };
+
+    const updatedConversations = [newConversation, ...conversations];
+    setConversations(updatedConversations);
+    setActiveConversation(newConversation.id);
+    setChatHistory([]);
+    localStorage.setItem('conversations', JSON.stringify(updatedConversations));
+
+    return newConversation.id;
+  };
+
+  const selectConversation = (id) => {
+    const conversation = conversations.find(c => c.id === id);
+    if (conversation) {
+      setActiveConversation(id);
+      setChatHistory(conversation.messages);
+    }
+  };
+
+  const deleteConversation = (id, e) => {
+    e.stopPropagation();
+    const updatedConversations = conversations.filter(c => c.id !== id);
+    setConversations(updatedConversations);
+    localStorage.setItem('conversations', JSON.stringify(updatedConversations));
+
+    if (activeConversation === id) {
+      if (updatedConversations.length > 0) {
+        selectConversation(updatedConversations[0].id);
+      } else {
+        createNewConversation();
+      }
+    }
+  };
+
+  const updateConversationTitle = (id, newTitle) => {
+    const updatedConversations = conversations.map(conv =>
+      conv.id === id ? { ...conv, title: newTitle } : conv
+    );
+    setConversations(updatedConversations);
+    localStorage.setItem('conversations', JSON.stringify(updatedConversations));
+  };
+
+  const handleSend = async () => {
+    if (!message.trim() && !image) return;
+
+    // Create new conversation if none exists
+    let currentConvId = activeConversation;
+    if (!currentConvId) {
+      currentConvId = await createNewConversation();
+    }
+  
+    const userMessage = {
+      sender: 'You',
+      text: message,
+      image: imagePreview,
+      timestamp: new Date().toISOString()
+    };
+  
+    // Create updated history with the new message
+    const updatedHistory = [...chatHistory, userMessage];
+    setChatHistory(updatedHistory);
     setMessage('');
-
+    setImage(null);
+    setImagePreview(null);
+    setIsTyping(true);
+  
     try {
-      setIsTyping(true);
-
-      const genAI = new GoogleGenerativeAI("AIzaSyDo0eD4kH-FMGIa6mrr29TodxlqB5RFfzk"); // Replace with env variable
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      const result = await model.generateContent(message);
-
-      const prediction = result.response.text();
-      displayTypingEffect(prediction);
+      const genAI = new GoogleGenerativeAI("AIzaSyDo0eD4kH-FMGIa6mrr29TodxlqB5RFfzk");
+      const genModel = genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        generationConfig: { temperature }
+      });
+    let result;
+      if (image) {
+        const imageParts = [{
+          inlineData: {
+            data: image.split(',')[1],
+            mimeType: 'image/jpeg'
+          }
+        }];
+        const prompt = message || "Describe this image";
+        result = await genModel.generateContent([prompt, ...imageParts]);
+      } else {
+        result = await genModel.generateContent(message);
+      }
+  
+      const aiResponse = result.response.text();
+      const aiMessage = {
+        sender: 'AI',
+        text: aiResponse,
+        timestamp: new Date().toISOString()
+      };
+  
+      // Update chat history with AI response
+      const finalHistory = [...updatedHistory, aiMessage];
+      setChatHistory(finalHistory);
+  
+      // Update conversation in storage
+      const updatedConversations = conversations.map(conv => 
+        conv.id === currentConvId
+          ? { ...conv, messages: finalHistory }
+          : conv
+      );
+     // Update title if this is the first message
+     if (updatedHistory.length === 1) { // Only the user message exists
+      const title = generateConversationTitle(updatedHistory);
+      updateConversationTitle(currentConvId, title);
+    }
+      // Generate title if this is the first exchange (only 1 user message and no AI response yet)
+      if (updatedHistory.filter(m => m.sender === 'You').length === 1 && 
+          updatedHistory.filter(m => m.sender === 'AI').length === 0) {
+        setIsGeneratingTitle(true);
+        const title = await generateConversationTitle(finalHistory);
+        updateConversationTitle(currentConvId, title);
+        setIsGeneratingTitle(false);
+      }
+  
+      setConversations(updatedConversations);
+      localStorage.setItem('conversations', JSON.stringify(updatedConversations));
+  
     } catch (error) {
-      console.error(error);
+      console.error('API Error:', error);
       setChatHistory(prev => [
         ...prev,
-        { sender: 'ChatGPT', text: "An error occurred while fetching the response." }
+        {
+          sender: 'AI',
+          text: `Error: ${error.message}`,
+          timestamp: new Date().toISOString()
+        }
       ]);
+    } finally {
+      setIsTyping(false);
     }
   };
 
-  const displayTypingEffect = (text) => {
-    let index = 0;
-    setTypingResponse('');
-
-    const typingInterval = setInterval(() => {
-      setTypingResponse(prev => prev + text[index]);
-      index++;
-
-      if (index === text.length) {
-        clearInterval(typingInterval);
-        setChatHistory(prev => [...prev, { sender: 'ChatGPT', text }]);
-        setIsTyping(false);
-      }
-    }, 20);
-  };
-
-  const handleKeyPress = (event) => {
-    if (event.key === 'Enter') {
-      getPrediction();
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setImage(event.target.result);
+        setImagePreview(URL.createObjectURL(file));
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  const formatText = (text) => {
-    const lines = text.split('\n');
-    return lines.map((line, i) => (
-      <p key={i}>
-        {line.split(/(\*\*[^*]+\*\*)/g).map((part, j) => {
-          if (part.startsWith('**') && part.endsWith('**')) {
-            return <strong key={j}>{part.slice(2, -2)}</strong>;
-          }
-          return part;
-        })}
-      </p>
-    ));
+  const exportConversation = () => {
+    if (!activeConversation) return;
+
+    const conversation = conversations.find(c => c.id === activeConversation);
+    if (!conversation) return;
+
+    const data = {
+      title: conversation.title,
+      date: conversation.createdAt,
+      messages: conversation.messages
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat_${conversation.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
   };
 
   return (
-    <div className="d-flex vh-100 text-white w-100">
-      {/* Left history panel */}
-      <div className="left bg-dark p-4 col-3 d-flex flex-column gap-2">
-        <div className="d-flex gap-2 align-items-center">
-          <img src="https://chatgpt.com/favicon.ico" alt="ChatGPT Logo" className="" />
-          <span>ChatGPT</span>
-        </div>
-        <div className="history mt-3">
-          {chatHistory
-            .filter(entry => entry.sender === 'You')
-            .map((entry, index) => (
-              <div key={index} className="history-item border-bottom mt-3">
-                {entry.text}
+    <div className={`app ${darkMode ? 'dark' : 'light'}`}>
+      {/* Sidebar */}
+      <div className="sidebar">
+        <button
+          className="new-chat-btn"
+          onClick={createNewConversation}
+        >
+          + New Chat
+        </button>
+
+        <div className="conversation-list">
+          {conversations.map((conv) => (
+            <div
+              key={conv.id}
+              className={`conversation-item ${activeConversation === conv.id ? 'active' : ''}`}
+              onClick={() => selectConversation(conv.id)}
+            >
+              <div className="conversation-title">
+                {conv.title || 'Untitled Conversation'}
+                {isGeneratingTitle && activeConversation === conv.id && (
+                  <span className="loading-spinner"></span>
+                )}
               </div>
-            ))}
+              <button
+                className="delete-btn"
+                onClick={(e) => deleteConversation(conv.id, e)}
+              >
+                <FiTrash2 />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="sidebar-footer">
+          <button
+            className="theme-toggle"
+            onClick={() => setDarkMode(!darkMode)}
+          >
+            {darkMode ? <FiSun /> : <FiMoon />}
+            {darkMode ? ' Light Mode' : ' Dark Mode'}
+          </button>
         </div>
       </div>
 
-      {/* Right panel - Show logo if no chat history, otherwise show chat content */}
-      <div className="right col-9 d-flex flex-column p-3">
-
-        {chatHistory.length === 0 ? (
-          <div className="centered-logo text-center mt-5">
-            <img src="https://chatgpt.com/favicon.ico" alt="ChatGPT Logo" className="" />
-            <h3>Welcome to ChatGPT</h3>
-            <p>Start a conversation by typing a message below.</p>
-          </div>
-        ) : (
-          <>
-            <div className='d-flex justify-content-between align-items-center'>
-              <h4 className='fw-bold'>ChatGPT </h4>
-              <img src="data:image/jpeg;base64,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" alt="logo" className='logo' />
+      {/* Main Content */}
+      <div className="main-content">
+        {/* Chat Header */}
+        <div className="chat-header">
+          {activeConversation && (
+            <div className="conversation-info">
+              <input
+                type="text"
+                value={conversations.find(c => c.id === activeConversation)?.title || ''}
+                onChange={(e) => updateConversationTitle(activeConversation, e.target.value)}
+                className="conversation-title-input"
+                placeholder={isGeneratingTitle ? "Generating title..." : "Conversation title"}
+                disabled={isGeneratingTitle}
+              />
+              <button
+                className="export-btn"
+                onClick={exportConversation}
+                title="Export conversation"
+              >
+                <FiDownload />
+              </button>
             </div>
-            <div className="chat-box w-100 p-4" style={{ maxHeight: '95vh', overflowY: 'auto' }}>
-              {chatHistory.map((entry, index) => (
-                <div key={index} className={`text-left mb-3  ${entry.sender === 'You' ? 'text-light' : 'text-white'}`}>
-                  <strong>{entry.sender}</strong>: {formatText(entry.text)}
-                </div>
-              ))}
-              {isTyping && (
-                <div className="text-left text-white">
-                  <strong>ChatGPT</strong>: {formatText(typingResponse)}
-                </div>
-              )}
+          )}
+          <div className="model-controls">
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              disabled={isTyping}
+            >
+              <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+              <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            </select>
+            <div className="temperature-control">
+              <span>Creativity:</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={temperature}
+                onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                disabled={isTyping}
+              />
+              <span>{temperature.toFixed(1)}</span>
             </div>
-          </>
-        )}
-
-        <div className="input-container w-100 d-flex justify-content-center align-items-center" style={{ height: '8vh' }}>
-          <div className="input-group w-75 d-flex align-items-center">
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Message ChatGPT"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-            />
-            <button className="btn btn-primary" onClick={getPrediction}>
-              Send
-            </button>
           </div>
         </div>
 
+        {/* Chat Area */}
+        <div className="chat-area" ref={chatBoxRef}>
+          {chatHistory.length === 0 ? (
+            <div className="welcome-screen">
+              <h2>Welcome to Gemini Chat</h2>
+              <p>Start a new conversation or select an existing one from the sidebar</p>
+              <div className="example-prompts">
+                <h4>Try asking:</h4>
+                <div className="prompt" onClick={() => setMessage("Explain quantum computing in simple terms")}>
+                  "Explain quantum computing in simple terms"
+                </div>
+                <div className="prompt" onClick={() => setMessage("What's the weather like today?")}>
+                  "What's the weather like today?"
+                </div>
+                <div className="prompt" onClick={() => setMessage("Write a poem about artificial intelligence")}>
+                  "Write a poem about artificial intelligence"
+                </div>
+              </div>
+            </div>
+          ) : (
+            chatHistory.map((msg, idx) => (
+              <div key={idx} className={`message ${msg.sender.toLowerCase()}`}>
+                <div className="message-header">
+                  <div className="sender-icon">
+                    {msg.sender === 'You' ? '👤' : '🤖'}
+                  </div>
+                  <div className="sender-name">{msg.sender}</div>
+                  <div className="message-time">
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                  {msg.sender === 'AI' && (
+                    <button
+                      className="copy-btn"
+                      onClick={() => copyToClipboard(msg.text)}
+                      title="Copy to clipboard"
+                    >
+                      <FiCopy />
+                    </button>
+                  )}
+                </div>
+                {msg.image && (
+                  <div className="message-image">
+                    <img src={msg.image} alt="User uploaded" />
+                  </div>
+                )}
+                <div className="message-content">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw]}
+                  >
+                    {msg.text}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            ))
+          )}
+          {isTyping && (
+            <div className="message ai">
+              <div className="message-header">
+                <div className="sender-icon">🤖</div>
+                <div className="sender-name">AI</div>
+              </div>
+              <div className="message-content typing-indicator">
+                <div className="typing-dot"></div>
+                <div className="typing-dot"></div>
+                <div className="typing-dot"></div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input Area */}
+        <div className="input-area">
+          {imagePreview && (
+            <div className="image-preview">
+              <img src={imagePreview} alt="Preview" />
+              <button
+                className="remove-image"
+                onClick={() => {
+                  setImage(null);
+                  setImagePreview(null);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+          <div className="input-container">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              accept="image/*"
+              style={{ display: 'none' }}
+            />
+            <button
+              className="image-upload-btn"
+              onClick={() => fileInputRef.current.click()}
+              title="Upload image"
+            >
+              📷
+            </button>
+            <div className="text-input-container">
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Type a message..."
+                rows={1}
+              />
+              <div className="input-buttons">
+                <button
+                  className={`voice-btn ${isListening ? 'active' : ''}`}
+                  onClick={toggleVoiceInput}
+                  disabled={!('webkitSpeechRecognition' in window)}
+                  title={!('webkitSpeechRecognition' in window) ? 'Voice input not supported in your browser' : 'Voice input'}
+                >
+                  {isListening ? <FiMicOff /> : <FiMic />}
+                </button>
+                <button
+                  className="send-btn"
+                  onClick={handleSend}
+                  disabled={isTyping || (!message.trim() && !image)}
+                >
+                  {isTyping ? (
+                    <div className="spinner"></div>
+                  ) : (
+                    <FiSend />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="disclaimer">
+            Gemini may produce inaccurate information. Double-check important facts.
+          </div>
+        </div>
       </div>
     </div>
   );
