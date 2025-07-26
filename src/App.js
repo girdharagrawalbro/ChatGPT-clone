@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { FiSend, FiCopy, FiMic, FiMicOff, FiMoon, FiSun, FiTrash2, FiMenu, FiX, FiImage, FiPlus, FiSettings } from 'react-icons/fi';
+import { FiSend, FiCopy, FiMic, FiTrash2, FiMenu, FiX, FiImage, FiPlus, FiSettings } from 'react-icons/fi';
 
 // A simple SVG icon to represent Gemini
 const GeminiIcon = () => (
