@@ -39,6 +39,19 @@ function App() {
     }
   }, [message]);
 
+  useEffect(() => {
+    const savedConversations = localStorage.getItem('conversations');
+    if (savedConversations) {
+      const parsed = JSON.parse(savedConversations);
+      setConversations(parsed);
+      if (parsed.length > 0) {
+        setActiveConversation(parsed[0].id);
+        setChatHistory(parsed[0].messages);
+      }
+    } else {
+      createNewConversation();
+    }
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
@@ -106,21 +119,6 @@ function App() {
     return newConversation.id;
   };
 
-  
-  useEffect(() => {
-    const savedConversations = localStorage.getItem('conversations');
-    if (savedConversations) {
-      const parsed = JSON.parse(savedConversations);
-      setConversations(parsed);
-      if (parsed.length > 0) {
-        setActiveConversation(parsed[0].id);
-        setChatHistory(parsed[0].messages);
-      }
-    } else {
-      createNewConversation();
-    }
-  }, [createNewConversation]);
-  
   const selectConversation = (id) => {
     const conversation = conversations.find(c => c.id === id);
     if (conversation) {
