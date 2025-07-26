@@ -18,9 +18,6 @@ function App() {
   const [message, setMessage] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [model, setModel] = useState('gemini-1.5-flash');
-  const [temperature, setTemperature] = useState(0.7);
-  const [darkMode, setDarkMode] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
   const [isListening, setIsListening] = useState(false);
