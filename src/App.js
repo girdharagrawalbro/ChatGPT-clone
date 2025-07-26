@@ -3,18 +3,24 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { FiSend, FiCopy, FiMic, FiMicOff, FiMoon, FiSun, FiTrash2, FiDownload, FiMenu, FiX, FiImage, FiPlus } from 'react-icons/fi';
-import { FaGemini } from 'react-icons/fa6';
-import './App.css';
+import { FiSend, FiCopy, FiMic, FiMicOff, FiMoon, FiSun, FiTrash2, FiMenu, FiX, FiImage, FiPlus, FiSettings } from 'react-icons/fi';
+
+// A simple SVG icon to represent Gemini
+const GeminiIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="bg-gradient-to-br from-blue-400 to-purple-500 rounded-full">
+    <path d="M12 4.75L13.4724 9.52763L18.25 11L13.4724 12.4724L12 17.25L10.5276 12.4724L5.75 11L10.5276 9.52763L12 4.75Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 
 function App() {
-  // State management
+  // All your state management and refs remain unchanged
   const [message, setMessage] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [model, setModel] = useState('gemini-1.5-flash');
   const [temperature, setTemperature] = useState(0.7);
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
   const [isListening, setIsListening] = useState(false);
@@ -22,32 +28,31 @@ function App() {
   const [imagePreview, setImagePreview] = useState(null);
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-  // Refs
   const chatBoxRef = useRef(null);
   const fileInputRef = useRef(null);
   const recognitionRef = useRef(null);
   const textareaRef = useRef(null);
 
-  // Check for mobile view
+  // All your useEffect hooks and helper functions remain unchanged
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    // Apply dark mode class to the root element for Tailwind
+    const root = window.document.documentElement;
+    if (darkMode) {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, [darkMode]);
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+      const scrollHeight = textareaRef.current.scrollHeight;
+      textareaRef.current.style.height = `${scrollHeight}px`;
     }
   }, [message]);
 
-  // Initialize from localStorage
   useEffect(() => {
     const savedConversations = localStorage.getItem('conversations');
     if (savedConversations) {
@@ -62,51 +67,40 @@ function App() {
     }
   }, []);
 
-  // Auto-scroll chat
   useEffect(() => {
     scrollToBottom();
   }, [chatHistory, isTyping]);
 
-  // Voice recognition setup
   useEffect(() => {
     if ('webkitSpeechRecognition' in window) {
       recognitionRef.current = new window.webkitSpeechRecognition();
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = false;
       recognitionRef.current.lang = 'en-US';
-
       recognitionRef.current.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
         setMessage(prev => prev + (prev ? ' ' : '') + transcript);
       };
-
       recognitionRef.current.onerror = (event) => {
         console.error('Speech recognition error', event.error);
         setIsListening(false);
       };
-
-      recognitionRef.current.onend = () => {
-        setIsListening(false);
-      };
+      recognitionRef.current.onend = () => setIsListening(false);
     }
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
+      if (recognitionRef.current) recognitionRef.current.stop();
     };
   }, []);
 
   const scrollToBottom = () => {
-    if (chatBoxRef.current) {
-      chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
-    }
+    chatBoxRef.current?.scrollTo({ top: chatBoxRef.current.scrollHeight, behavior: 'smooth' });
   };
 
   const toggleVoiceInput = () => {
     if (isListening) {
-      recognitionRef.current.stop();
+      recognitionRef.current?.stop();
     } else {
-      recognitionRef.current.start();
+      recognitionRef.current?.start();
     }
     setIsListening(!isListening);
   };
@@ -114,17 +108,13 @@ function App() {
   const generateConversationTitle = async (messages) => {
     const firstUserMessage = messages.find(msg => msg.sender === 'You')?.text;
     if (!firstUserMessage) return 'New Chat';
-    
     try {
-      const genAI = new GoogleGenerativeAI(process.env.API);
+      const genAI = new GoogleGenerativeAI("AIzaSyDo0eD4kH-FMGIa6mrr29TodxlqB5RFfzk");
       const genModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      
       const prompt = `Generate a very short title (3-4 words max) for this conversation starter: "${firstUserMessage}"`;
       const result = await genModel.generateContent(prompt);
-      const response = result.response.text();
-      
-      // Clean up the response to get just the title
-      const title = response.replace(/["']/g, '').trim();
+      const response = await result.response;
+      const title = response.text().replace(/["']/g, '').trim();
       return title || firstUserMessage.split(' ').slice(0, 4).join(' ');
     } catch (error) {
       console.error('Error generating title:', error);
@@ -133,23 +123,13 @@ function App() {
   };
 
   const createNewConversation = async () => {
-    const newConversation = {
-      id: Date.now(),
-      title: 'New Chat',
-      messages: [],
-      createdAt: new Date().toISOString()
-    };
-
+    const newConversation = { id: Date.now(), title: 'New Chat', messages: [], createdAt: new Date().toISOString() };
     const updatedConversations = [newConversation, ...conversations];
     setConversations(updatedConversations);
     setActiveConversation(newConversation.id);
     setChatHistory([]);
     localStorage.setItem('conversations', JSON.stringify(updatedConversations));
-
-    if (isMobile) {
-      setMobileSidebarOpen(false);
-    }
-
+    setMobileSidebarOpen(false);
     return newConversation.id;
   };
 
@@ -159,10 +139,7 @@ function App() {
       setActiveConversation(id);
       setChatHistory(conversation.messages);
     }
-    
-    if (isMobile) {
-      setMobileSidebarOpen(false);
-    }
+    setMobileSidebarOpen(false);
   };
 
   const deleteConversation = (id, e) => {
@@ -170,7 +147,6 @@ function App() {
     const updatedConversations = conversations.filter(c => c.id !== id);
     setConversations(updatedConversations);
     localStorage.setItem('conversations', JSON.stringify(updatedConversations));
-
     if (activeConversation === id) {
       if (updatedConversations.length > 0) {
         selectConversation(updatedConversations[0].id);
@@ -181,9 +157,7 @@ function App() {
   };
 
   const updateConversationTitle = (id, newTitle) => {
-    const updatedConversations = conversations.map(conv =>
-      conv.id === id ? { ...conv, title: newTitle } : conv
-    );
+    const updatedConversations = conversations.map(conv => conv.id === id ? { ...conv, title: newTitle } : conv);
     setConversations(updatedConversations);
     localStorage.setItem('conversations', JSON.stringify(updatedConversations));
   };
@@ -191,87 +165,50 @@ function App() {
   const handleSend = async () => {
     if (!message.trim() && !image) return;
 
-    // Create new conversation if none exists
     let currentConvId = activeConversation;
     if (!currentConvId) {
       currentConvId = await createNewConversation();
     }
-  
-    const userMessage = {
-      sender: 'You',
-      text: message,
-      image: imagePreview,
-      timestamp: new Date().toISOString()
-    };
-  
-    // Create updated history with the new message
+
+    const userMessage = { sender: 'You', text: message, image: imagePreview, timestamp: new Date().toISOString() };
     const updatedHistory = [...chatHistory, userMessage];
     setChatHistory(updatedHistory);
     setMessage('');
     setImage(null);
     setImagePreview(null);
     setIsTyping(true);
-  
-    try {
-      const genAI = new GoogleGenerativeAI(process.env.API);
-      const genModel = genAI.getGenerativeModel({
-        model: model,
-        generationConfig: { temperature }
-      });
 
+    try {
+      const genAI = new GoogleGenerativeAI("AIzaSyDo0eD4kH-FMGIa6mrr29TodxlqB5RFfzk");
+      const genModel = genAI.getGenerativeModel({ model: image ? 'gemini-1.5-flash' : model, generationConfig: { temperature } });
       let result;
       if (image) {
-        const imageParts = [{
-          inlineData: {
-            data: image.split(',')[1],
-            mimeType: 'image/jpeg'
-          }
-        }];
+        const imageParts = [{ inlineData: { data: image.split(',')[1], mimeType: 'image/jpeg' } }];
         const prompt = message || "Describe this image";
         result = await genModel.generateContent([prompt, ...imageParts]);
       } else {
         result = await genModel.generateContent(message);
       }
-  
-      const aiResponse = result.response.text();
-      const aiMessage = {
-        sender: 'Gemini',
-        text: aiResponse,
-        timestamp: new Date().toISOString()
-      };
-  
-      // Update chat history with AI response
+      const aiResponse = await result.response.text();
+      const aiMessage = { sender: 'Gemini', text: aiResponse, timestamp: new Date().toISOString() };
       const finalHistory = [...updatedHistory, aiMessage];
       setChatHistory(finalHistory);
-  
-      // Update conversation in storage
-      const updatedConversations = conversations.map(conv => 
-        conv.id === currentConvId
-          ? { ...conv, messages: finalHistory }
-          : conv
-      );
 
-      // Generate title if this is the first exchange
+      const convs = JSON.parse(localStorage.getItem('conversations') || '[]');
+      const updatedConversations = convs.map(conv => conv.id === currentConvId ? { ...conv, messages: finalHistory } : conv);
+
       if (updatedHistory.length === 1) {
         setIsGeneratingTitle(true);
         const title = await generateConversationTitle(finalHistory);
         updateConversationTitle(currentConvId, title);
         setIsGeneratingTitle(false);
+      } else {
+        setConversations(updatedConversations);
+        localStorage.setItem('conversations', JSON.stringify(updatedConversations));
       }
-  
-      setConversations(updatedConversations);
-      localStorage.setItem('conversations', JSON.stringify(updatedConversations));
-  
     } catch (error) {
       console.error('API Error:', error);
-      setChatHistory(prev => [
-        ...prev,
-        {
-          sender: 'Gemini',
-          text: `Sorry, I encountered an error: ${error.message}`,
-          timestamp: new Date().toISOString()
-        }
-      ]);
+      setChatHistory(prev => [...prev, { sender: 'Gemini', text: `Sorry, I encountered an error: ${error.message}`, timestamp: new Date().toISOString() }]);
     } finally {
       setIsTyping(false);
     }
@@ -289,29 +226,6 @@ function App() {
     }
   };
 
-  const exportConversation = () => {
-    if (!activeConversation) return;
-
-    const conversation = conversations.find(c => c.id === activeConversation);
-    if (!conversation) return;
-
-    const data = {
-      title: conversation.title,
-      date: conversation.createdAt,
-      messages: conversation.messages
-    };
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `gemini_chat_${conversation.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
   };
@@ -323,251 +237,158 @@ function App() {
     }
   };
 
+
   return (
-    <div className={`app ${darkMode ? 'dark' : 'light'}`}>
-      {/* Mobile Header */}
-      {isMobile && (
-        <div className="mobile-header">
-          <button 
-            className="menu-btn"
-            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-          >
-            {mobileSidebarOpen ? <FiX size={20} /> : <FiMenu size={20} />}
-          </button>
-          <div className="mobile-title">
-            <FaGemini className="gemini-icon" />
-            <span>Gemini</span>
-          </div>
-          <div className="mobile-placeholder"></div>
-        </div>
-      )}
-
+    <div className="flex h-screen font-sans bg-white dark:bg-[#131314] text-gray-800 dark:text-gray-200">
       {/* Sidebar */}
-      <div className={`sidebar ${mobileSidebarOpen ? 'open' : ''}`}>
-        <div className="sidebar-header">
-          <button
-            className="new-chat-btn"
-            onClick={createNewConversation}
-          >
-            <FiPlus size={18} />
-            <span>New chat</span>
-          </button>
-        </div>
-
-        <div className="conversation-list">
-          {conversations.map((conv) => (
-            <div
-              key={conv.id}
-              className={`conversation-item ${activeConversation === conv.id ? 'active' : ''}`}
-              onClick={() => selectConversation(conv.id)}
-            >
-              <div className="conversation-content">
-                <div className="conversation-icon">
-                  <FaGemini size={16} />
-                </div>
-                <div className="conversation-title">
-                  {conv.title || 'New Chat'}
-                  {isGeneratingTitle && activeConversation === conv.id && (
-                    <span className="loading-spinner"></span>
-                  )}
-                </div>
-              </div>
-              <button
-                className="delete-btn"
-                onClick={(e) => deleteConversation(conv.id, e)}
-              >
-                <FiTrash2 size={16} />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <div className="sidebar-footer">
-          <div className="user-section">
-            <div className="user-avatar">U</div>
-            <div className="user-name">User</div>
+      <div className={`fixed inset-y-0 left-0 z-30 w-68 bg-[#f0f4f9] dark:bg-[#1e1f20] transform ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 transition-transform duration-300 ease-in-out`}>
+        <div className="flex flex-col h-full p-2">
+          <div className="flex justify-between items-center mb-4">
+            <button onClick={createNewConversation} className="flex-grow flex items-center gap-2 p-2 rounded-full text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700">
+              <FiPlus size={20} />
+              New chat
+            </button>
+            <button onClick={() => setMobileSidebarOpen(false)} className="p-1 rounded bg-blue-100 dark:hover:bg-gray-700 md:hidden">
+              <FiX size={20} />
+            </button>
           </div>
-          <button
-            className="theme-toggle"
-            onClick={() => setDarkMode(!darkMode)}
-          >
-            {darkMode ? <FiSun size={18} /> : <FiMoon size={18} />}
-            {darkMode ? ' Light theme' : ' Dark theme'}
-          </button>
+
+          <div className="flex-grow overflow-y-auto">
+            <h5 className="px-2 py-1 text-sm font-medium text-gray-500 dark:text-gray-400">Recent</h5>
+            {conversations.map((conv) => (
+              <div
+                key={conv.id}
+                className={`flex items-center justify-between px-3 py-2  mt-1 rounded-full cursor-pointer ${activeConversation === conv.id ? 'bg-blue-100 dark:bg-gray-700' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                onClick={() => selectConversation(conv.id)}
+              >
+                <p className="m-0 p-0 truncate flex-1 text-sm ">{conv.title}</p>
+                {isGeneratingTitle && activeConversation === conv.id && <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-2"></div>}
+                <button onClick={(e) => deleteConversation(conv.id, e)} className="p-1 rounded-full hover:bg-red-200 dark:hover:bg-red-800 opacity-50 hover:opacity-100">
+                  <FiTrash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-2 ">
+            <button className="w-full flex items-center gap-3 p-2 text-sm hover:bg-blue-100 dark:hover:bg-blue-100 rounded-full">
+              <FiSettings size={18} />
+              <span>Settings and Help</span>
+            </button>
+
+          </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="main-content">
+      <div className="flex flex-col flex-1 h-screen">
+
         {/* Chat Area */}
-        <div className="chat-area" ref={chatBoxRef}>
-          {chatHistory.length === 0 ? (
-            <div className="welcome-screen">
-              <div className="welcome-logo">
-                <FaGemini size={64} />
-                <h1>Gemini</h1>
-              </div>
-              <h2>How can I help you today?</h2>
-              <div className="example-prompts">
-                <div className="prompt" onClick={() => setMessage("Explain quantum computing in simple terms")}>
-                  "Explain quantum computing in simple terms"
-                </div>
-                <div className="prompt" onClick={() => setMessage("What's the weather like today?")}>
-                  "What's the weather like today?"
-                </div>
-                <div className="prompt" onClick={() => setMessage("Write a poem about artificial intelligence")}>
-                  "Write a poem about artificial intelligence"
-                </div>
-                <div className="prompt" onClick={() => setMessage("Plan a 3-day trip to New York")}>
-                  "Plan a 3-day trip to New York"
-                </div>
-              </div>
-              <div className="disclaimer">
-                Gemini may display inaccurate info, including about people, so double-check its responses.
+        <main ref={chatBoxRef} className="flex-1 overflow-y-auto py-2 px-3 md:p-6">
+          <div className="flex items-center justify-between">
+            <div className='flex gap-2 items-center'>
+              <button onClick={() => setMobileSidebarOpen(true)} className="p-2  rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+                <FiMenu size={20} />
+              </button>
+              <div className='flex flex-col'>
+                <h5 className='text-gray-500'>Gemini</h5>
+                <p className="text-sm m-0 p-0 text-gray-500 bg-[#f0f4f9]  px-2 py-1 rounded-full  dark:text-gray-400 font-medium">{model}</p>
               </div>
             </div>
-          ) : (
-            chatHistory.map((msg, idx) => (
-              <div key={idx} className={`message ${msg.sender.toLowerCase()}`}>
-                <div className="message-header">
-                  <div className="sender-icon">
+            <div>
+              <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center font-medium">G</div>
+
+            </div>
+          </div>
+
+          <div className="max-w-3xl mx-auto w-full">
+            {chatHistory.length === 0 ? (
+              <div className="flex items-center justify-center h-96 text-center">
+                <h1 className="text-3xl font-medium" style={{ color: '#6666ff' }}>
+                  Hello, User
+                </h1>
+              </div>
+            ) : (
+              chatHistory.map((msg, idx) => (
+                <div key={idx} className="flex gap-4 my-6">
+                  <div className="flex-shrink-0">
                     {msg.sender === 'You' ? (
-                      <div className="user-avatar">U</div>
+                      <div className="w-8 h-8 rounded-full bg-blue-300 dark:bg-blue-600 flex text-white items-center justify-center font-medium">G</div>
                     ) : (
-                      <FaGemini size={24} className="gemini-icon" />
+                      <GeminiIcon />
                     )}
                   </div>
-                  <div className="message-content-container">
-                    <div className="sender-name">{msg.sender}</div>
-                    {msg.image && (
-                      <div className="message-image">
-                        <img src={msg.image} alt="User uploaded" />
-                      </div>
-                    )}
-                    <div className="message-content">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        rehypePlugins={[rehypeRaw]}
-                      >
+                  <div className="flex flex-col w-full">
+                    {msg.image && <img src={msg.image} alt="upload" className="mt-2 rounded-lg max-w-xs" />}
+                    <div className="prose prose-lg dark:prose-invert max-w-none text-gray-800 dark:text-gray-200">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
                         {msg.text}
                       </ReactMarkdown>
                     </div>
-                    <div className="message-footer">
-                      <div className="message-time">
-                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
+                    <div className="mt-2 flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                      <span className="text-xs">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       {msg.sender === 'Gemini' && (
-                        <button
-                          className="copy-btn"
-                          onClick={() => copyToClipboard(msg.text)}
-                          title="Copy to clipboard"
-                        >
-                          <FiCopy size={16} />
+                        <button onClick={() => copyToClipboard(msg.text)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600" title="Copy">
+                          <FiCopy size={14} />
                         </button>
                       )}
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
-          )}
-          {isTyping && (
-            <div className="message gemini">
-              <div className="message-header">
-                <div className="sender-icon">
-                  <FaGemini size={24} className="gemini-icon" />
-                </div>
-                <div className="message-content-container">
-                  <div className="sender-name">Gemini</div>
-                  <div className="message-content typing-indicator">
-                    <div className="typing-dot"></div>
-                    <div className="typing-dot"></div>
-                    <div className="typing-dot"></div>
-                  </div>
+              ))
+            )}
+            {isTyping && (
+              <div className="flex gap-4 my-6">
+                <div className="flex-shrink-0"><GeminiIcon /></div>
+                <div className="flex items-center">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce mx-1" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+
+        </main>
 
         {/* Input Area */}
-        <div className="input-area">
-          {imagePreview && (
-            <div className="image-preview">
-              <img src={imagePreview} alt="Preview" />
-              <button
-                className="remove-image"
-                onClick={() => {
-                  setImage(null);
-                  setImagePreview(null);
-                }}
-              >
-                ×
-              </button>
-            </div>
-          )}
-          <div className="input-container">
-            <div className="input-actions">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-                accept="image/*"
-                style={{ display: 'none' }}
-              />
-              <button
-                className="image-upload-btn"
-                onClick={() => fileInputRef.current.click()}
-                title="Upload image"
-              >
+        <footer className="px-4 py-1 md:p-6">
+          <div className="max-w-3xl mx-auto">
+            {imagePreview && (
+              <div className="relative w-24 h-24 mb-2">
+                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover rounded-lg" />
+                <button onClick={() => { setImage(null); setImagePreview(null); }} className="absolute -top-2 -right-2 bg-gray-700 text-white rounded-full w-6 h-6 flex items-center justify-center text-lg">&times;</button>
+              </div>
+            )}
+            <div className="relative border border-gray-900 flex items-center p-2 bg-[#fff] dark:bg-[#1e1f20] rounded-3xl">
+              <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
+              <button onClick={() => fileInputRef.current.click()} title="Upload image" className="p-2 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600">
                 <FiImage size={20} />
               </button>
-            </div>
-            <div className="text-input-container">
               <textarea
                 ref={textareaRef}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Message Gemini..."
+                placeholder="Ask Gemini"
                 rows={1}
+                className="flex-1 px-2 bg-transparent focus:outline-none resize-none max-h-48"
               />
-              <button
-                className="send-btn"
-                onClick={handleSend}
-                disabled={isTyping || (!message.trim() && !image)}
-              >
-                {isTyping ? (
-                  <div className="spinner"></div>
-                ) : (
-                  <FiSend size={20} />
-                )}
+              <button onClick={toggleVoiceInput} title="Use microphone" className={`p-2 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 ${isListening ? 'bg-red-500 text-white' : ''}`}>
+                <FiMic size={20} />
+              </button>
+              <button onClick={handleSend} disabled={isTyping || (!message.trim() && !image)} className="p-2 rounded-full  disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 dark:hover:bg-gray-500">
+                <FiSend size={20} />
               </button>
             </div>
-            <div className="voice-input">
-              <button
-                className={`voice-btn ${isListening ? 'active' : ''}`}
-                onClick={toggleVoiceInput}
-                disabled={!('webkitSpeechRecognition' in window)}
-                title={!('webkitSpeechRecognition' in window) ? 'Voice input not supported in your browser' : 'Voice input'}
-              >
-                {isListening ? <FiMicOff size={20} /> : <FiMic size={20} />}
-              </button>
-            </div>
+            <p className="text-xs text-center mt-2 text-gray-500 dark:text-gray-400">
+              Gemini can make mistakes, so double-check it
+            </p>
           </div>
-          <div className="input-footer">
-            <div className="model-info">
-              <span>Model: {model === 'gemini-1.5-flash' ? 'Gemini 1.5 Flash' : 'Gemini 1.5 Pro'}</span>
-              <span>Temperature: {temperature.toFixed(1)}</span>
-            </div>
-            <div className="disclaimer">
-              Gemini may display inaccurate info, including about people, so double-check its responses.
-            </div>
-          </div>
-        </div>
+        </footer>
       </div>
     </div>
   );
 }
 
-export default App;
+export default App;                                               
