@@ -31,17 +31,6 @@ function App() {
   const recognitionRef = useRef(null);
   const textareaRef = useRef(null);
 
-  // All your useEffect hooks and helper functions remain unchanged
-  useEffect(() => {
-    // Apply dark mode class to the root element for Tailwind
-    const root = window.document.documentElement;
-    if (darkMode) {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-  }, [darkMode]);
-
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -177,7 +166,7 @@ function App() {
 
     try {
       const genAI = new GoogleGenerativeAI("AIzaSyDo0eD4kH-FMGIa6mrr29TodxlqB5RFfzk");
-      const genModel = genAI.getGenerativeModel({ model: image ? 'gemini-1.5-flash' : model, generationConfig: { temperature } });
+      const genModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
       let result;
       if (image) {
         const imageParts = [{ inlineData: { data: image.split(',')[1], mimeType: 'image/jpeg' } }];
@@ -289,7 +278,7 @@ function App() {
               </button>
               <div className='flex flex-col'>
                 <h5 className='text-gray-500'>Gemini</h5>
-                <p className="text-sm m-0 p-0 text-gray-500 bg-[#f0f4f9]  px-2 py-1 rounded-full  dark:text-gray-400 font-medium">{model}</p>
+                <p className="text-sm m-0 p-0 text-gray-500 bg-[#f0f4f9]  px-2 py-1 rounded-full  dark:text-gray-400 font-medium">gemini-1.5-flash</p>
               </div>
             </div>
             <div>
