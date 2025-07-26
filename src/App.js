@@ -3,7 +3,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { FiSend, FiCopy, FiMic, FiMicOff, FiMoon, FiSun, FiTrash2, FiDownload } from 'react-icons/fi';
+import { FiSend, FiCopy, FiMic, FiMicOff, FiMoon, FiSun, FiTrash2, FiDownload, FiMenu, FiX, FiImage, FiPlus } from 'react-icons/fi';
+import { FaGemini } from 'react-icons/fa6';
 import './App.css';
 
 function App() {
@@ -20,11 +21,31 @@ function App() {
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   // Refs
   const chatBoxRef = useRef(null);
   const fileInputRef = useRef(null);
   const recognitionRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  // Check for mobile view
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [message]);
 
   // Initialize from localStorage
   useEffect(() => {
@@ -36,6 +57,8 @@ function App() {
         setActiveConversation(parsed[0].id);
         setChatHistory(parsed[0].messages);
       }
+    } else {
+      createNewConversation();
     }
   }, []);
 
@@ -50,10 +73,11 @@ function App() {
       recognitionRef.current = new window.webkitSpeechRecognition();
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
 
       recognitionRef.current.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
-        setMessage(prev => prev + ' ' + transcript);
+        setMessage(prev => prev + (prev ? ' ' : '') + transcript);
       };
 
       recognitionRef.current.onerror = (event) => {
@@ -87,21 +111,31 @@ function App() {
     setIsListening(!isListening);
   };
 
-  const generateConversationTitle = (messages) => {
+  const generateConversationTitle = async (messages) => {
     const firstUserMessage = messages.find(msg => msg.sender === 'You')?.text;
     if (!firstUserMessage) return 'New Chat';
     
-    // Take first 4 words or 30 characters, whichever comes first
-    const words = firstUserMessage.trim().split(/\s+/).slice(0, 4).join(' ');
-    return words.slice(0, 30) || 'New Chat';
+    try {
+      const genAI = new GoogleGenerativeAI(process.env.API);
+      const genModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      
+      const prompt = `Generate a very short title (3-4 words max) for this conversation starter: "${firstUserMessage}"`;
+      const result = await genModel.generateContent(prompt);
+      const response = result.response.text();
+      
+      // Clean up the response to get just the title
+      const title = response.replace(/["']/g, '').trim();
+      return title || firstUserMessage.split(' ').slice(0, 4).join(' ');
+    } catch (error) {
+      console.error('Error generating title:', error);
+      return firstUserMessage.split(' ').slice(0, 4).join(' ') || 'New Chat';
+    }
   };
-  
- 
 
   const createNewConversation = async () => {
     const newConversation = {
       id: Date.now(),
-      title: 'New Chat', // Temporary title
+      title: 'New Chat',
       messages: [],
       createdAt: new Date().toISOString()
     };
@@ -112,6 +146,10 @@ function App() {
     setChatHistory([]);
     localStorage.setItem('conversations', JSON.stringify(updatedConversations));
 
+    if (isMobile) {
+      setMobileSidebarOpen(false);
+    }
+
     return newConversation.id;
   };
 
@@ -120,6 +158,10 @@ function App() {
     if (conversation) {
       setActiveConversation(id);
       setChatHistory(conversation.messages);
+    }
+    
+    if (isMobile) {
+      setMobileSidebarOpen(false);
     }
   };
 
@@ -171,12 +213,13 @@ function App() {
     setIsTyping(true);
   
     try {
-      const genAI = new GoogleGenerativeAI("AIzaSyDo0eD4kH-FMGIa6mrr29TodxlqB5RFfzk");
+      const genAI = new GoogleGenerativeAI(process.env.API);
       const genModel = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: model,
         generationConfig: { temperature }
       });
-    let result;
+
+      let result;
       if (image) {
         const imageParts = [{
           inlineData: {
@@ -192,7 +235,7 @@ function App() {
   
       const aiResponse = result.response.text();
       const aiMessage = {
-        sender: 'AI',
+        sender: 'Gemini',
         text: aiResponse,
         timestamp: new Date().toISOString()
       };
@@ -207,14 +250,9 @@ function App() {
           ? { ...conv, messages: finalHistory }
           : conv
       );
-     // Update title if this is the first message
-     if (updatedHistory.length === 1) { // Only the user message exists
-      const title = generateConversationTitle(updatedHistory);
-      updateConversationTitle(currentConvId, title);
-    }
-      // Generate title if this is the first exchange (only 1 user message and no AI response yet)
-      if (updatedHistory.filter(m => m.sender === 'You').length === 1 && 
-          updatedHistory.filter(m => m.sender === 'AI').length === 0) {
+
+      // Generate title if this is the first exchange
+      if (updatedHistory.length === 1) {
         setIsGeneratingTitle(true);
         const title = await generateConversationTitle(finalHistory);
         updateConversationTitle(currentConvId, title);
@@ -229,8 +267,8 @@ function App() {
       setChatHistory(prev => [
         ...prev,
         {
-          sender: 'AI',
-          text: `Error: ${error.message}`,
+          sender: 'Gemini',
+          text: `Sorry, I encountered an error: ${error.message}`,
           timestamp: new Date().toISOString()
         }
       ]);
@@ -267,7 +305,7 @@ function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `chat_${conversation.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
+    a.download = `gemini_chat_${conversation.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -278,16 +316,43 @@ function App() {
     navigator.clipboard.writeText(text);
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   return (
     <div className={`app ${darkMode ? 'dark' : 'light'}`}>
+      {/* Mobile Header */}
+      {isMobile && (
+        <div className="mobile-header">
+          <button 
+            className="menu-btn"
+            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+          >
+            {mobileSidebarOpen ? <FiX size={20} /> : <FiMenu size={20} />}
+          </button>
+          <div className="mobile-title">
+            <FaGemini className="gemini-icon" />
+            <span>Gemini</span>
+          </div>
+          <div className="mobile-placeholder"></div>
+        </div>
+      )}
+
       {/* Sidebar */}
-      <div className="sidebar">
-        <button
-          className="new-chat-btn"
-          onClick={createNewConversation}
-        >
-          + New Chat
-        </button>
+      <div className={`sidebar ${mobileSidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-header">
+          <button
+            className="new-chat-btn"
+            onClick={createNewConversation}
+          >
+            <FiPlus size={18} />
+            <span>New chat</span>
+          </button>
+        </div>
 
         <div className="conversation-list">
           {conversations.map((conv) => (
@@ -296,89 +361,54 @@ function App() {
               className={`conversation-item ${activeConversation === conv.id ? 'active' : ''}`}
               onClick={() => selectConversation(conv.id)}
             >
-              <div className="conversation-title">
-                {conv.title || 'Untitled Conversation'}
-                {isGeneratingTitle && activeConversation === conv.id && (
-                  <span className="loading-spinner"></span>
-                )}
+              <div className="conversation-content">
+                <div className="conversation-icon">
+                  <FaGemini size={16} />
+                </div>
+                <div className="conversation-title">
+                  {conv.title || 'New Chat'}
+                  {isGeneratingTitle && activeConversation === conv.id && (
+                    <span className="loading-spinner"></span>
+                  )}
+                </div>
               </div>
               <button
                 className="delete-btn"
                 onClick={(e) => deleteConversation(conv.id, e)}
               >
-                <FiTrash2 />
+                <FiTrash2 size={16} />
               </button>
             </div>
           ))}
         </div>
 
         <div className="sidebar-footer">
+          <div className="user-section">
+            <div className="user-avatar">U</div>
+            <div className="user-name">User</div>
+          </div>
           <button
             className="theme-toggle"
             onClick={() => setDarkMode(!darkMode)}
           >
-            {darkMode ? <FiSun /> : <FiMoon />}
-            {darkMode ? ' Light Mode' : ' Dark Mode'}
+            {darkMode ? <FiSun size={18} /> : <FiMoon size={18} />}
+            {darkMode ? ' Light theme' : ' Dark theme'}
           </button>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="main-content">
-        {/* Chat Header */}
-        <div className="chat-header">
-          {activeConversation && (
-            <div className="conversation-info">
-              <input
-                type="text"
-                value={conversations.find(c => c.id === activeConversation)?.title || ''}
-                onChange={(e) => updateConversationTitle(activeConversation, e.target.value)}
-                className="conversation-title-input"
-                placeholder={isGeneratingTitle ? "Generating title..." : "Conversation title"}
-                disabled={isGeneratingTitle}
-              />
-              <button
-                className="export-btn"
-                onClick={exportConversation}
-                title="Export conversation"
-              >
-                <FiDownload />
-              </button>
-            </div>
-          )}
-          <div className="model-controls">
-            <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              disabled={isTyping}
-            >
-              <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-              <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-            </select>
-            <div className="temperature-control">
-              <span>Creativity:</span>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={temperature}
-                onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                disabled={isTyping}
-              />
-              <span>{temperature.toFixed(1)}</span>
-            </div>
-          </div>
-        </div>
-
         {/* Chat Area */}
         <div className="chat-area" ref={chatBoxRef}>
           {chatHistory.length === 0 ? (
             <div className="welcome-screen">
-              <h2>Welcome to Gemini Chat</h2>
-              <p>Start a new conversation or select an existing one from the sidebar</p>
+              <div className="welcome-logo">
+                <FaGemini size={64} />
+                <h1>Gemini</h1>
+              </div>
+              <h2>How can I help you today?</h2>
               <div className="example-prompts">
-                <h4>Try asking:</h4>
                 <div className="prompt" onClick={() => setMessage("Explain quantum computing in simple terms")}>
                   "Explain quantum computing in simple terms"
                 </div>
@@ -388,6 +418,12 @@ function App() {
                 <div className="prompt" onClick={() => setMessage("Write a poem about artificial intelligence")}>
                   "Write a poem about artificial intelligence"
                 </div>
+                <div className="prompt" onClick={() => setMessage("Plan a 3-day trip to New York")}>
+                  "Plan a 3-day trip to New York"
+                </div>
+              </div>
+              <div className="disclaimer">
+                Gemini may display inaccurate info, including about people, so double-check its responses.
               </div>
             </div>
           ) : (
@@ -395,48 +431,60 @@ function App() {
               <div key={idx} className={`message ${msg.sender.toLowerCase()}`}>
                 <div className="message-header">
                   <div className="sender-icon">
-                    {msg.sender === 'You' ? '👤' : '🤖'}
+                    {msg.sender === 'You' ? (
+                      <div className="user-avatar">U</div>
+                    ) : (
+                      <FaGemini size={24} className="gemini-icon" />
+                    )}
                   </div>
-                  <div className="sender-name">{msg.sender}</div>
-                  <div className="message-time">
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <div className="message-content-container">
+                    <div className="sender-name">{msg.sender}</div>
+                    {msg.image && (
+                      <div className="message-image">
+                        <img src={msg.image} alt="User uploaded" />
+                      </div>
+                    )}
+                    <div className="message-content">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeRaw]}
+                      >
+                        {msg.text}
+                      </ReactMarkdown>
+                    </div>
+                    <div className="message-footer">
+                      <div className="message-time">
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                      {msg.sender === 'Gemini' && (
+                        <button
+                          className="copy-btn"
+                          onClick={() => copyToClipboard(msg.text)}
+                          title="Copy to clipboard"
+                        >
+                          <FiCopy size={16} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  {msg.sender === 'AI' && (
-                    <button
-                      className="copy-btn"
-                      onClick={() => copyToClipboard(msg.text)}
-                      title="Copy to clipboard"
-                    >
-                      <FiCopy />
-                    </button>
-                  )}
-                </div>
-                {msg.image && (
-                  <div className="message-image">
-                    <img src={msg.image} alt="User uploaded" />
-                  </div>
-                )}
-                <div className="message-content">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[rehypeRaw]}
-                  >
-                    {msg.text}
-                  </ReactMarkdown>
                 </div>
               </div>
             ))
           )}
           {isTyping && (
-            <div className="message ai">
+            <div className="message gemini">
               <div className="message-header">
-                <div className="sender-icon">🤖</div>
-                <div className="sender-name">AI</div>
-              </div>
-              <div className="message-content typing-indicator">
-                <div className="typing-dot"></div>
-                <div className="typing-dot"></div>
-                <div className="typing-dot"></div>
+                <div className="sender-icon">
+                  <FaGemini size={24} className="gemini-icon" />
+                </div>
+                <div className="message-content-container">
+                  <div className="sender-name">Gemini</div>
+                  <div className="message-content typing-indicator">
+                    <div className="typing-dot"></div>
+                    <div className="typing-dot"></div>
+                    <div className="typing-dot"></div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -459,58 +507,62 @@ function App() {
             </div>
           )}
           <div className="input-container">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImageUpload}
-              accept="image/*"
-              style={{ display: 'none' }}
-            />
-            <button
-              className="image-upload-btn"
-              onClick={() => fileInputRef.current.click()}
-              title="Upload image"
-            >
-              📷
-            </button>
+            <div className="input-actions">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImageUpload}
+                accept="image/*"
+                style={{ display: 'none' }}
+              />
+              <button
+                className="image-upload-btn"
+                onClick={() => fileInputRef.current.click()}
+                title="Upload image"
+              >
+                <FiImage size={20} />
+              </button>
+            </div>
             <div className="text-input-container">
               <textarea
+                ref={textareaRef}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                placeholder="Type a message..."
+                onKeyDown={handleKeyDown}
+                placeholder="Message Gemini..."
                 rows={1}
               />
-              <div className="input-buttons">
-                <button
-                  className={`voice-btn ${isListening ? 'active' : ''}`}
-                  onClick={toggleVoiceInput}
-                  disabled={!('webkitSpeechRecognition' in window)}
-                  title={!('webkitSpeechRecognition' in window) ? 'Voice input not supported in your browser' : 'Voice input'}
-                >
-                  {isListening ? <FiMicOff /> : <FiMic />}
-                </button>
-                <button
-                  className="send-btn"
-                  onClick={handleSend}
-                  disabled={isTyping || (!message.trim() && !image)}
-                >
-                  {isTyping ? (
-                    <div className="spinner"></div>
-                  ) : (
-                    <FiSend />
-                  )}
-                </button>
-              </div>
+              <button
+                className="send-btn"
+                onClick={handleSend}
+                disabled={isTyping || (!message.trim() && !image)}
+              >
+                {isTyping ? (
+                  <div className="spinner"></div>
+                ) : (
+                  <FiSend size={20} />
+                )}
+              </button>
+            </div>
+            <div className="voice-input">
+              <button
+                className={`voice-btn ${isListening ? 'active' : ''}`}
+                onClick={toggleVoiceInput}
+                disabled={!('webkitSpeechRecognition' in window)}
+                title={!('webkitSpeechRecognition' in window) ? 'Voice input not supported in your browser' : 'Voice input'}
+              >
+                {isListening ? <FiMicOff size={20} /> : <FiMic size={20} />}
+              </button>
             </div>
           </div>
-          <div className="disclaimer">
-            Gemini may produce inaccurate information. Double-check important facts.
+          <div className="input-footer">
+            <div className="model-info">
+              <span>Model: {model === 'gemini-1.5-flash' ? 'Gemini 1.5 Flash' : 'Gemini 1.5 Pro'}</span>
+              <span>Temperature: {temperature.toFixed(1)}</span>
+            </div>
+            <div className="disclaimer">
+              Gemini may display inaccurate info, including about people, so double-check its responses.
+            </div>
           </div>
         </div>
       </div>
