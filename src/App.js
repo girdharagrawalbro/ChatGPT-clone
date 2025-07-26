@@ -51,7 +51,7 @@ function App() {
     } else {
       createNewConversation();
     }
-  }, []);
+  }, [createNewConversation]);
 
   useEffect(() => {
     scrollToBottom();
